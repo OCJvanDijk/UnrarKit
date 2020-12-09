@@ -42,7 +42,7 @@ NS_DESIGNATED_INITIALIZER
 @property (assign) struct RARHeaderDataEx *header;
 @property (assign) struct RAROpenArchiveDataEx *flags;
 
-@property (strong) NSData *fileBookmark;
+@property (strong) NSURL *url;
 
 @property (strong) NSObject *threadLock;
 
@@ -153,23 +153,9 @@ NS_DESIGNATED_INITIALIZER
         
         URKLogDebug("Initializing private fields");
 
-        NSError *bookmarkError = nil;
-        _fileBookmark = [fileURL bookmarkDataWithOptions:0
-                          includingResourceValuesForKeys:@[]
-                                           relativeToURL:nil
-                                                   error:&bookmarkError];
+        _url = fileURL;
         _password = password;
         _threadLock = [[NSObject alloc] init];
-
-        if (bookmarkError) {
-            URKLogFault("Error creating bookmark to RAR archive: %{public}@", bookmarkError);
-
-            if (error) {
-                *error = bookmarkError;
-            }
-
-            return nil;
-        }
     }
 
     return self;
@@ -182,34 +168,7 @@ NS_DESIGNATED_INITIALIZER
 - (NSURL *)fileURL
 {
     URKCreateActivity("Read Archive URL");
-
-    BOOL bookmarkIsStale = NO;
-    NSError *error = nil;
-
-    NSURL *result = [NSURL URLByResolvingBookmarkData:self.fileBookmark
-                                              options:0
-                                        relativeToURL:nil
-                                  bookmarkDataIsStale:&bookmarkIsStale
-                                                error:&error];
-
-    if (error) {
-        URKLogFault("Error resolving bookmark to RAR archive: %{public}@", error);
-        return nil;
-    }
-
-    if (bookmarkIsStale) {
-        URKLogDebug("Refreshing stale bookmark");
-        self.fileBookmark = [result bookmarkDataWithOptions:0
-                             includingResourceValuesForKeys:@[]
-                                              relativeToURL:nil
-                                                      error:&error];
-
-        if (error) {
-            URKLogFault("Error creating fresh bookmark to RAR archive: %{public}@", error);
-        }
-  }
-
-    return result;
+    return self.url;
 }
 
 - (NSString *)filename
