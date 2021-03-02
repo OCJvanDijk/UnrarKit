@@ -791,53 +791,55 @@ NS_DESIGNATED_INITIALIZER
 
         URKFileInfo *info = nil;
         while ([welf readHeader:&RHCode info:&info] == URKReadHeaderLoopActionContinueReading) {
-            if (stop || progress.isCancelled) {
-                URKLogDebug("Action dictated an early stop");
-                return;
-            }
-            
-            if ([welf headerContainsErrors:innerError]) {
-                URKLogError("Header contains an error")
-                return;
-            }
-            
-            URKLogDebug("Performing action on %{public}@", info.filename);
-
-            // Empty file, or a directory
-            if (info.isDirectory || info.uncompressedSize == 0) {
-                URKLogDebug("%{public}@ is an empty file, or a directory", info.filename);
-                action(info, [NSData data], &stop);
-                PFCode = RARProcessFile(welf.rarFile, RAR_SKIP, NULL, NULL);
-                if (PFCode != 0) {
-                    NSString *errorName = nil;
-                    [welf assignError:innerError code:(NSInteger)PFCode errorName:&errorName];
-                    URKLogError("Error skipping directory: %{public}@ (%d)", errorName, PFCode);
+            @autoreleasepool {
+                if (stop || progress.isCancelled) {
+                    URKLogDebug("Action dictated an early stop");
                     return;
                 }
-                
-                continue;
+
+                if ([welf headerContainsErrors:innerError]) {
+                    URKLogError("Header contains an error")
+                    return;
+                }
+
+                URKLogDebug("Performing action on %{public}@", info.filename);
+
+                // Empty file, or a directory
+                if (info.isDirectory || info.uncompressedSize == 0) {
+                    URKLogDebug("%{public}@ is an empty file, or a directory", info.filename);
+                    action(info, [NSData data], &stop);
+                    PFCode = RARProcessFile(welf.rarFile, RAR_SKIP, NULL, NULL);
+                    if (PFCode != 0) {
+                        NSString *errorName = nil;
+                        [welf assignError:innerError code:(NSInteger)PFCode errorName:&errorName];
+                        URKLogError("Error skipping directory: %{public}@ (%d)", errorName, PFCode);
+                        return;
+                    }
+
+                    continue;
+                }
+
+                UInt8 *buffer = (UInt8 *)malloc((size_t)info.uncompressedSize * sizeof(UInt8));
+                UInt8 *callBackBuffer = buffer;
+
+                RARSetCallback(welf.rarFile, CallbackProc, (long) &callBackBuffer);
+
+                URKLogInfo("Processing file...");
+                PFCode = RARProcessFile(welf.rarFile, RAR_TEST, NULL, NULL);
+
+                if (![welf didReturnSuccessfully:PFCode]) {
+                    NSString *errorName = nil;
+                    [welf assignError:innerError code:(NSInteger)PFCode errorName:&errorName];
+                    URKLogError("Error processing file: %{public}@ (%d)", errorName, PFCode);
+                    return;
+                }
+
+                URKLogDebug("Performing action on data (%lld bytes)", info.uncompressedSize);
+                NSData *data = [NSData dataWithBytesNoCopy:buffer length:(NSUInteger)info.uncompressedSize freeWhenDone:YES];
+                action(info, data, &stop);
+
+                progress.completedUnitCount += data.length;
             }
-
-            UInt8 *buffer = (UInt8 *)malloc((size_t)info.uncompressedSize * sizeof(UInt8));
-            UInt8 *callBackBuffer = buffer;
-
-            RARSetCallback(welf.rarFile, CallbackProc, (long) &callBackBuffer);
-
-            URKLogInfo("Processing file...");
-            PFCode = RARProcessFile(welf.rarFile, RAR_TEST, NULL, NULL);
-
-            if (![welf didReturnSuccessfully:PFCode]) {
-                NSString *errorName = nil;
-                [welf assignError:innerError code:(NSInteger)PFCode errorName:&errorName];
-                URKLogError("Error processing file: %{public}@ (%d)", errorName, PFCode);
-                return;
-            }
-
-            URKLogDebug("Performing action on data (%lld bytes)", info.uncompressedSize);
-            NSData *data = [NSData dataWithBytesNoCopy:buffer length:(NSUInteger)info.uncompressedSize freeWhenDone:YES];
-            action(info, data, &stop);
-            
-            progress.completedUnitCount += data.length;
         }
         
         if (progress.isCancelled) {
