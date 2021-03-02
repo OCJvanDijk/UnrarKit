@@ -72,10 +72,9 @@ extern BOOL unrarkitIsAtLeast10_13SDK; // Declared in URKArchive.m
     unrarkitIsAtLeast10_13SDK = [[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]; \
     URKLogDebug("Is >= 10.13 (or iOS 11): %@", unrarkitIsAtLeast10_13SDK ? @"YES" : @"NO");
 
-#define URKLog(format, ...)      os_log(unrarkit_log, format, ##__VA_ARGS__);
-#define URKLogInfo(format, ...)  os_log_info(unrarkit_log, format, ##__VA_ARGS__);
-#define URKLogDebug(format, ...) os_log_debug(unrarkit_log, format, ##__VA_ARGS__);
-
+#define URKLog(...) (void)0;
+#define URKLogInfo(...) (void)0;
+#define URKLogDebug(...) (void)0;
 
 #define URKLogError(format, ...) \
     if (unrarkitIsAtLeast10_13SDK) os_log_error(unrarkit_log, format, ##__VA_ARGS__); \
